@@ -1,0 +1,43 @@
+<?php
+
+// print_r(PDO::getAvailableDrivers());
+
+$host ="localhost";
+$user ="root";
+$password ="";
+$dbname ="student";
+//data source name
+$db ="mysql:host=$host;dbname=$dbname";
+
+$connection = new PDO($db,$user,$password);
+$connection -> setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_OBJ);
+//$statement =$connection->query("SELECT * FROM student_table");
+// while($row =$statement->fetch()){
+//    echo $row->first_name.$row->Last_name.""."<>br";
+//}
+
+$gender="Male";
+
+//Position Parameters
+
+//Position Parameters
+$sql = "SELECT * FROM student_table WHERE gender = ?";
+$statement=$connection->prepare($sql);
+$statement->execute([$gender]);
+$users=$statement->fetchAll();
+foreach($users as $user){
+echo $user->last_name. " ". $user->gender. "<br>";
+}
+
+// "
+// "
+
+
+// $statement =$connection->query("SELECT * FROM student_table");
+// while($row =$statement->fetch())
+// (PDO::FETCH_ASSOC){
+//     echo $row['first_name']."".$row
+//     ['last_name']."".<br>";
+//     print_r
+// }
+?>

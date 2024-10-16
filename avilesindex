@@ -1,0 +1,151 @@
+<?php
+require_once('connection.php');
+$newConnection->addProduct();
+$newConnection->editStudent();
+$newConnection->deleteProduct();
+$products = $newConnection->getAllProducts();
+
+if (isset($_POST['search_btn']) && !empty($_POST['search_input'])) {
+    $products = $newConnection->searchProducts();
+}
+
+if (isset($_POST['filterDate_btn'])) {
+    $products = $newConnection->filterByDate();
+}
+
+if (isset($_POST['filter_btn']) && !empty($_POST['filter_input'])) {
+    $products = $newConnection->filterProducts();
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css" integrity="sha512-Kc323vGBEqzTmouAECnVceyQqyqdsSiqLQISBL29aUW4U/M7pSPA/gEUZQqv1cwx4OnYxTxve5UMg5GT6L4JJg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            background-color: khaki; /* Background color for the body */
+        }
+        
+        .table th, .table td {
+            background-color: wheat; /* Lightly dark background for table cells */
+        }
+    </style>
+    <title>Prelim</title>
+</head>
+
+<body>
+
+    <div class="container mb-4 mt-5 d-flex justify-content-center">
+        <form action="" method="POST" class="row g-4">
+            <div class="col-md-2">
+                <input type="text" class="form-control p-2" placeholder="Product Name" name="product_name">
+            </div>
+            <div class="col-md-2">
+                <select class="form-select p-2" aria-label="Default select example" name="category">
+                    <option selected disabled>Category</option>
+                    <?php foreach ($newConnection->gategory_list as $gategory) { ?>
+                        <option value="<?= $gategory ?>"><?= $gategory ?></option>
+                    <?php } ?>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="number" class="form-control p-2" placeholder="Price" name="price">
+            </div>
+            <div class="col-md-2">
+                <input type="number" class="form-control p-2" placeholder="Quantity" name="quantity">
+            </div>
+            <div class="col-md-2">
+                <input type="date" class="form-control p-2" name="created_at">
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary" name="add_product">Add</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="container mb-5 mt-4 d-flex justify-content-between">
+        <div>
+            <form action="" method="POST" class="d-flex align-items-center gap-3">
+                <select class="form-select p-2 me-2" aria-label="Default select example" style="width: auto;" name="filter_input">
+                    <option selected disabled>Filter Option</option>
+                    <option value="All">All Products</option>
+                    <?php foreach ($newConnection->gategory_list as $gategory) { ?>
+                        <option value="<?= $gategory ?>"><?= $gategory ?></option>
+                    <?php } ?>
+                    <option value="In Stock">In Stock</option>
+                    <option value="Out Stock">Out Stock</option>
+                </select>
+                <button type="submit" class="btn btn-secondary" name="filter_btn">Filter</button>
+            </form>
+        </div>
+
+        <form action="" method="POST" class="d-flex align-items-center gap-3">
+            <input type="text" class="form-control p-2" placeholder="From" name="start_date">
+            <input type="text" class="form-control p-2" placeholder="To" name="end_date">
+            <button type="submit" class="btn btn-secondary" name="filterDate_btn">Submit Range</button>
+        </form>
+
+        <form class="d-flex align-items-center gap-3" role="search" action="" method="POST">
+            <input class="form-control p-2 me-2" type="search" placeholder="Search" aria-label="Search" name="search_input">
+            <button class="btn btn-outline-success" type="submit" name="search_btn">Search</button>
+        </form>
+    </div>
+
+    <main class="container" >
+        <table class="table" >
+            <thead>
+                <tr>
+                    <th scope="col">Product Id</th>
+                    <th scope="col">Product Name</th>
+                    <th scope="col">Category</th>
+                    <th scope="col">Price</th>
+                    <th scope="col">Quantity</th>
+                    <th scope="col">Date Purchase</th>
+                    <th scope="col">Actions</th>
+                    <th scope="col"></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                if (!empty($products)) {
+                    foreach ($products as $row) {
+                ?>
+                        <tr>
+                            <th scope="row"><?= $row->product_id ?></th>
+                            <td><?= $row->product_name ?></td>
+                            <td><?= $row->category ?></td>
+                            <td>₱ <?= $row->price ?></td>
+                            <td><?= $row->quantity ?>x</td>
+                            <td><?= $row->created_at ?></td>
+                            <td>
+                                <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<?= $row->product_id ?>">
+                                    <i class="fa-solid fa-pen-to-square"></i> Edit
+                                </button>
+                            </td>
+                            <td>
+                                <form action="" method="POST">
+                                    <button class="btn btn-danger" value="<?php echo $row->product_id ?>" name="delete_product">
+                                        <i class="fa-solid fa-trash"></i> Delete
+                                    </button>
+                                </form>
+                            </td>
+                            <?php include('modal.php') ?>
+                        </tr>
+                <?php
+                    }
+                } else {
+                    echo "<tr><td colspan='8'>No products found.</td></tr>";
+                }
+                ?>
+            </tbody>
+        </table>
+    </main>
+</body>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+</html>

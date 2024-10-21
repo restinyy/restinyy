@@ -1,0 +1,58 @@
+
+import 'package:flutter_application_1/circle.dart';
+import 'package:flutter_application_1/square.dart';
+import 'package:flutter/material.dart';
+
+// ignore: use_key_in_widget_constructors
+class HomePage extends StatelessWidget {
+    final List posts = [
+      'post1',
+      'post2',
+      'post3',
+      'post4',
+      'post5',
+    ];
+    final List stories = [
+      'story1',
+      'story2',
+      'story3',
+      'story4',
+      'story5',
+      'story6',
+      'story7',
+      'story8',
+      'story9',
+      'story10',
+      'story11',
+      'story12',
+      'story13',
+    ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          SizedBox(
+            height: 150,
+            child: ListView.builder(
+              itemCount: stories.length,
+              scrollDirection: Axis.horizontal,
+              itemBuilder: (context, index){
+              return MyCircle(child: stories[index]);
+            }),
+          ),
+ 
+          Expanded(
+            child: ListView.builder(
+              itemCount: posts.length,
+              itemBuilder: (context, index){
+              return MySquare(child: posts[index],);
+            }),
+          ),
+        ],
+      )
+    );
+  
+  }
+}

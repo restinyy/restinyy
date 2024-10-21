@@ -56,3 +56,21 @@ class HomePage extends StatelessWidget {
   
   }
 }
+
+
+
+maindart
+
+
+
+
+import 'package:flutter_application_1/home_page.dart';
+import 'package:flutter/material.dart';
+
+
+void main() {
+  runApp(MaterialApp(
+    home: HomePage(),
+  ));
+}
+

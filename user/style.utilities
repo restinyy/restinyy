@@ -1,0 +1,49 @@
+register.css
+*{
+    margin: 0;
+    padding: 0;
+}
+
+body{
+    height: 100vh;
+    background: url('../backgroundjpg.jpg');
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+}
+
+.box {
+    background-color: rgba(23, 119, 52, 0.95); /* Slightly transparent white */
+    border-radius: 12px;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+    padding: 30px;
+    backdrop-filter: blur(10px); /* Soft background blur */
+    max-width: 500px; /* Adjust max width */
+    margin: auto; /* Centering */
+    position: relative;
+    top: 100px;
+}
+
+style.css
+*{
+    margin: 0;
+    padding: 0;
+}
+
+body{
+    height: 100vh;
+    background: url('../backgroundjpg.jpg');
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+}
+
+.box {
+    background-color: rgba(255, 255, 255, 0.95); /* Slightly transparent white */
+    border-radius: 12px;
+    box-shadow: 0 10px 20px rgba(45, 168, 127, 0.15);
+    padding: 30px;
+    backdrop-filter: blur(10px); /* Soft background blur */
+    max-width: 400px; /* Adjust max width */
+    margin: auto; /* Centering */
+    position: relative;
+    top: 150px;
+}

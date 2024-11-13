@@ -1,0 +1,429 @@
+db
+
+connection.php
+<?php
+
+
+$dbhost = "localhost";
+$dbuser = "root";
+$dbpass = "";
+$dbname = "store_db";
+
+try{
+    $pdo =  new PDO("mysql:host=$dbhost;dbname=$dbname", $dbuser, $dbpass);
+
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+} catch(PDOexception $err) {
+    echo "Database connection problem: " . $err->getMessage();
+}
+?>
+
+crud.php
+<?php
+session_start();
+include("connection.php");
+
+// $pdonection = new Connection();
+// $pdo = $pdonection->OpenConnection(); // Initialize $pdo
+
+if (isset($_POST['register'])) { {
+        $user = $_POST['user'];
+        $pass = $_POST['pass'];
+        $name = $_POST['name'];
+        $address = $_POST['address'];
+        $date = $_POST['date'];
+        $gender = $_POST['gender'];
+
+
+        //if user and email already exist
+        $query = "INSERT INTO users(user,pass,full_name,address,gender,birthdate, user_type) 
+        VALUES (:user, :pass, :name, :address, :gender, :date, :usertype)";
+        $query_run = $pdo->prepare($query);
+
+        $data = [
+            ':user' => $user,
+            ':pass' => $pass,
+            ':name' => $name,
+            ':address' => $address,
+            ':gender' => $gender,
+            ':date' => $date,
+            ':usertype' => '1',
+        ];
+        $query_execute = $query_run->execute($data);
+
+        if ($query_execute) {
+            $_SESSION['Status1'] = "Register Successfully";
+            header('Location: ../signup.php');
+            die;
+        }
+        $_SESSION['Status'] = " Failed to register";
+        header('Location: ../signup.php');
+        die;
+    }
+}
+
+
+if (isset($_POST['add_product'])) {
+    $product_name = $_POST['product_name'];
+    $category = $_POST['category'];
+    $price = $_POST['price'];
+    $quantity = $_POST['quantity'];
+    $availability = $_POST['availability'];
+    $date = $_POST['date'];
+
+
+    //if user and email already exist
+    $query = "INSERT INTO product_tbl(product_name,category,price,quantity,product_availability,date) 
+    VALUES (:product_name, :category, :price, :quantity, :availability, :date)";
+    $query_run = $pdo->prepare($query);
+
+    $data = [
+        ':product_name' => $product_name,
+        ':category' => $category,
+        ':price' => $price,
+        ':quantity' => $quantity,
+        ':availability' => $availability,
+        ':date' => $date,
+    ];
+    $query_execute = $query_run->execute($data);
+
+    if ($query_execute) {
+        $_SESSION['message'] = "Inserted Successfully";
+        header('Location: index.php');
+        die;
+    }
+    $_SESSION['message'] = "Not Inserted";
+    header('Location: index.php');
+    die;
+}
+
+
+if (isset($_POST['update_product'])) { // Check if the form was submitted
+    $product_id = $_POST['product_id']; // Assuming you have a hidden input for product ID
+    $product_name = $_POST['product_name'];
+    $category = $_POST['category'];
+    $price = $_POST['price'];
+    $quantity = $_POST['quantity'];
+    $availability = $_POST['availability'];
+    $date = $_POST['date'];
+
+    // Prepare the update query
+    $query = "UPDATE product_tbl SET 
+                product_name = :product_name,
+                category = :category,
+                price = :price,
+                quantity = :quantity,
+                product_availability = :availability,
+                date = :date
+              WHERE id = :product_id"; // Make sure 'id' matches your primary key field name
+
+    $query_run = $pdo->prepare($query);
+
+    // Bind parameters to the query
+    $data = [
+        ':product_name' => $product_name,
+        ':category' => $category,
+        ':price' => $price,
+        ':quantity' => $quantity,
+        ':availability' => $availability,
+        ':date' => $date,
+        ':product_id' => $product_id, // Bind the product ID
+    ];
+
+    // Execute the query
+    $query_execute = $query_run->execute($data);
+
+    // Check if the update was successful
+    if ($query_execute) {
+        $_SESSION['message'] = "Updated Successfully";
+        header('Location: index.php');
+        exit; // Use exit instead of die
+    } else {
+        $_SESSION['message'] = "Update Failed";
+        header('Location: index.php');
+        exit; // Use exit instead of die
+    }
+}
+
+
+
+
+if (isset($_POST['delete_product'])) { // Check if the delete button was pressed
+    $product_id = $_POST['product_id']; // Assuming you have a hidden input for product ID
+
+    // Prepare the delete query
+    $query = "DELETE FROM product_tbl WHERE id = :product_id"; // Make sure 'id' matches your primary key field name
+
+    $query_run = $pdo->prepare($query);
+
+    // Bind the product ID parameter
+    $data = [
+        ':product_id' => $product_id, // Bind the product ID
+    ];
+
+    // Execute the query
+    $query_execute = $query_run->execute($data);
+
+    // Check if the delete was successful
+    if ($query_execute) {
+        $_SESSION['message'] = "Deleted Successfully";
+        header('Location: index.php');
+        exit; // Use exit instead of die
+    } else {
+        $_SESSION['message'] = "Deletion Failed";
+        header('Location: index.php');
+        exit; // Use exit instead of die
+    }
+}
+
+if (isset($_POST['add_category'])) { // Check if the delete button was pressed
+    $category_name = $_POST['category_name']; // Assuming you have a hidden input for product ID
+
+    // Prepare the delete query
+    $query = "INSERT INTO category_tbl(category_name) VALUES (:category_name)"; // Make sure 'id' matches your primary key field name
+
+    $query_run = $pdo->prepare($query);
+
+    // Bind the product ID parameter
+    $data = [
+        ':category_name' => $category_name, // Bind the product ID
+    ];
+
+    // Execute the query
+    $query_execute = $query_run->execute($data);
+
+    // Check if the delete was successful
+    if ($query_execute) {
+        $_SESSION['message'] = "Add Successfully";
+        header('Location: index.php');
+        exit; // Use exit instead of die
+    } else {
+        $_SESSION['message'] = "Add Failed";
+        header('Location: index.php');
+        exit; // Use exit instead of die
+    }
+}
+
+if (isset($_POST['add_cart'])) {
+    $price = $_POST['price'];
+    $qty = $_POST['qty'];
+    $product = $_POST['product'];
+    $user_id = $_POST['id'];
+
+    $sql = "SELECT quantity FROM product_tbl WHERE product_name = :product_name";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([':product_name' => $product]);
+
+    // Fetch the result as an associative array
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($result) {
+        var_dump($result['quantity']);
+        var_dump($qty);
+    }
+    if ($result['quantity'] >= $qty) {
+        $newQty = $result['quantity'] - $qty;
+
+        $sql2 = "UPDATE product_tbl SET quantity = :newQty WHERE product_name = :prod";
+        $stmt2 = $pdo->prepare($sql2);
+        $stmt2->execute([':newQty' => $newQty, ':prod'=> $product]);
+        
+
+        $query = "INSERT INTO cart_tbl(product, quantity, price, user_id) VALUES (:product, :qty, :price, :user_id)";
+        $query_run = $pdo->prepare($query);
+
+        $data = [
+            ':product' => $product,
+            ':qty' => $qty,
+            ':price' => $price,
+            ':user_id' => $user_id,
+        ];
+
+        $query_execute = $query_run->execute($data);
+
+        // Check if the delete was successful
+        if ($query_execute) {
+            $_SESSION['message'] = "Add Cart Successfully";
+            header('Location: ../user/index.php');
+            exit; // Use exit instead of die
+        } else {
+            $_SESSION['message'] = "Add Cart Failed";
+            header('Location: ../user/index.php');
+            exit; // Use exit instead of die
+        }
+    }else{
+        $_SESSION['message'] = "Not enough quantity";
+        header('Location: ../user/index.php');
+        exit; // Use exit instead of die
+}
+}
+
+if (isset($_POST['add_order'])) {
+    $user_id = $_POST['user_id'];
+
+    // Loop through each cart item
+    foreach ($_POST['product'] as $index => $product) {
+        $price = $_POST['price'][$index];
+        $qty = $_POST['qty'][$index];
+        $prod_id = $_POST['prod_id'][$index];
+
+        // Update cart_tbl status to 1 for each product ordered
+        $sql2 = "UPDATE cart_tbl SET status = 1 WHERE id = :prod_id";
+        $stmt2 = $pdo->prepare($sql2);
+        $stmt2->execute([':prod_id' => $prod_id]);
+
+        // Insert into order_tbl
+        $query = "INSERT INTO order_tbl(product_name, quantity, price, user_id) VALUES (:product, :qty, :price, :user_id)";
+        $query_run = $pdo->prepare($query);
+
+        $data = [
+            ':product' => $product,
+            ':qty' => $qty,
+            ':price' => $price,
+            ':user_id' => $user_id,
+        ];
+
+        $query_run->execute($data);
+    }
+
+    $_SESSION['message'] = "Order Added Successfully";
+    header('Location: ../user/index.php');
+    exit;
+}
+
+filter.php
+<?php
+include("connection.php"); 
+
+// Create a new instance of the Connection class and open the connection
+// $connection = new Connection();
+// $con = $connection->OpenConnection();
+
+if (isset($_POST['search'])) {
+    $product_name = isset($_POST['product_name']) ? $_POST['product_name'] : '';
+    $category = isset($_POST['category_name']) ? $_POST['category_name'] : '';
+    $product_availability = isset($_POST['product_availability']) ? $_POST['product_availability'] : '';
+    $start_date = isset($_POST['start_date']) ? $_POST['start_date'] : '';
+    $end_date = isset($_POST['end_date']) ? $_POST['end_date'] : '';
+
+    // Base SQL query
+    $sql = "SELECT product_tbl.id, product_name, price, quantity, product_availability, date, category_tbl.category_name 
+    FROM product_tbl INNER JOIN  category_tbl ON product_tbl.category = category_tbl.id WHERE 1";
+
+    // Add conditions based on input
+    if (!empty($product_name)) {
+        $sql .= " AND `product_name` LIKE :product_name";
+    }
+
+    if (!empty($category)) {
+        $sql .= " AND `category_name` = :category_name";
+    }
+
+    if (!empty($product_availability)) {
+        $sql .= " AND `product_availability` = :product_availability";
+    }
+
+    if (!empty($start_date) && !empty($end_date)) {
+        $sql .= " AND `date` BETWEEN :start_date AND :end_date";
+    }
+
+    $sql .= " ORDER BY `id` ASC";
+
+    // Prepare and bind parameters
+    $stmt = $con->prepare($sql);
+
+    if (!empty($product_name)) {
+        $product_name = "%" . $product_name . "%";
+        $stmt->bindParam(':product_name', $product_name);
+    }
+
+    if (!empty($category)) {
+        $stmt->bindParam(':category_name', $category);
+    }
+
+    if (!empty($product_availability)) {
+        $stmt->bindParam(':product_availability', $product_availability);
+    }
+
+    if (!empty($start_date) && !empty($end_date)) {
+        $stmt->bindParam(':start_date', $start_date);
+        $stmt->bindParam(':end_date', $end_date);
+    }
+
+    // Execute the query
+    $stmt->execute();
+    $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    // If no search criteria are selected, fetch all data
+    $stmt = $pdo->query("SELECT product_tbl.id, product_name, price, quantity, product_availability, date, category_tbl.category_name 
+    FROM product_tbl INNER JOIN category_tbl ON product_tbl.category = category_tbl.id");
+    $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// // Close the connection
+// $connection->closeConnection();
+?>
+
+function.php
+<?php
+include("connection.php");
+
+function check_login($pdo)
+{
+    if (isset($_SESSION['id'])) {
+        $id = $_SESSION['id'];
+
+        // Prepare the SQL query to prevent SQL injection
+        $query = "SELECT * FROM users WHERE id = :id LIMIT 1";
+        $stmt = $pdo->prepare($query);
+        $stmt->bindParam(':id', $id, PDO::PARAM_STR);
+        $stmt->execute();
+
+        // Check if a user was found
+        if ($stmt->rowCount() > 0) {
+            $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $user_data;
+        }
+    }
+
+    // Redirect to login page if not authenticated
+    header("Location: ../index.php");
+    die;
+}
+
+login.php
+<?php
+session_start();
+include("function.php");
+
+if (isset($_POST['login'])) {
+    include("connection.php");
+
+    $username = $_POST['user'];
+    $password = $_POST['pass'];
+
+    // Prepare and execute the query securely
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE user = :user LIMIT 1");
+    $stmt->execute(['user' => $username]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    // Check if the user exists and password is correct
+    if ($password === $row['pass']) {
+        $_SESSION['id'] = $row['id'];
+    
+        // Redirect based on user type
+        if ($row['user_type'] == 1) {
+            header("Location: ../user/index.php");
+            exit();
+        } elseif ($row['user_type'] == 2) {
+            header("Location: ../admin/index.php");
+            exit();
+        }
+    } else {
+        $_SESSION['status'] = "Wrong username or password!";
+        header('Location: ../index2.php');
+        exit();
+    }
+    
+}

@@ -1,0 +1,1604 @@
+ADDTOCART.PHP
+
+<?php
+session_start();
+include('connection.php');
+$connection = new Connection();
+$pdo = $connection->OpenConnection();
+
+// Check if necessary POST data is set
+if (isset($_POST['productName'], $_POST['price'], $_POST['quantity'])) {
+    $productName = $_POST['productName'];
+    $price = $_POST['price'];
+    $quantity = (int)$_POST['quantity'];
+    $total = $price * $quantity; // Calculate the total
+
+    try {
+        // Start a transaction
+        $pdo->beginTransaction();
+
+        // Check if there is enough quantity in stock
+        $stmt = $pdo->prepare("SELECT quantity FROM products WHERE product_name = :productName");
+        $stmt->execute(['productName' => $productName]);
+        $product = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if ($product && $product['quantity'] >= $quantity) {
+            // Deduct the chosen quantity from the products table
+            $stmt = $pdo->prepare("UPDATE products SET quantity = quantity - :quantity WHERE product_name = :productName");
+            $stmt->execute(['quantity' => $quantity, 'productName' => $productName]);
+
+            // Insert or update the product in the cart table for the current user
+            $username = $_SESSION['username'] ?? 'Guest';
+            $stmt = $pdo->prepare("INSERT INTO cart (username, product, quantity, price, total)
+                                VALUES (:username, :product, :quantity, :price, :total)
+                                ON DUPLICATE KEY UPDATE 
+                                    quantity = quantity + :quantity,
+                                    total = total + :total");
+            $stmt->execute([
+                'username' => $username,
+                'product' => $productName,
+                'quantity' => $quantity,
+                'price' => $price,
+                'total' => $total
+            ]);
+
+            // Commit the transaction
+            $pdo->commit();
+            echo "Product added to cart.";
+        } else {
+            // Rollback transaction if not enough stock
+            $pdo->rollBack();
+            echo "Not enough stock available.";
+        }
+    } catch (PDOException $e) {
+        // Rollback transaction on error
+        $pdo->rollBack();
+        echo "Error: " . $e->getMessage();
+    }
+} else {
+    echo "Invalid request.";
+}
+?>
+
+
+
+CONNECTION.PHP
+
+<?php
+if (!class_exists('Connection')) {
+    class Connection {
+        private $server = "mysql:host=localhost;dbname=prelim";
+        private $user = "root";
+        private $pass = "";
+
+        private $options = array(
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ
+        );
+        
+        protected $con;
+
+        // Function to open the database connection
+        public function OpenConnection() {
+            try {
+                $this->con = new PDO($this->server, $this->user, $this->pass, $this->options);
+                return $this->con;
+            } catch (PDOException $e) {
+                echo "There is some problem in the connection: " . $e->getMessage();
+            }
+        }
+
+        // Function to close the database connection
+        public function closeConnection() {
+            $this->con = null;
+        }
+    }
+}
+?>
+
+
+CRUD.PHP
+
+<?php
+session_start();
+include("connection.php");
+
+$connection = new Connection();
+$con = $connection->OpenConnection(); // Initialize $con
+
+
+if(isset($_POST['add_product']))
+{
+    $product_name = $_POST['product_name'];
+    $category = $_POST['category'];
+    $price = $_POST['price'];
+    $quantity = $_POST['quantity']; 
+    $availability = $_POST['availability'];
+    $date = $_POST['date'];
+
+
+    //if user and email already exist
+    $query = "INSERT INTO products(product_name,category,price,quantity,product_availability,date) 
+    VALUES (:product_name, :category, :price, :quantity, :availability, :date)";
+    $query_run = $con->prepare($query);
+
+    $data = [
+        ':product_name' => $product_name,
+        ':category' => $category,
+        ':price' => $price,
+        ':quantity' => $quantity,
+        ':availability' => $availability,
+        ':date' => $date,
+    ];
+    $query_execute = $query_run->execute($data);
+
+    if($query_execute)
+    {
+        $_SESSION['message'] = "Inserted Successfully";
+        header('Location: index.php');
+        die;
+    }
+        $_SESSION['message'] = "Not Inserted";
+        header('Location: index.php');
+        die;
+    }
+
+
+if (isset($_POST['update_product'])) { // Check if the form was submitted
+    $id = $_POST['id']; // Assuming you have a hidden input for product ID
+    $product_name = $_POST['product_name'];
+    $category = $_POST['category'];
+    $price = $_POST['price'];
+    $quantity = $_POST['quantity']; 
+    $availability = $_POST['availability'];
+    $date = $_POST['date'];
+
+    // Prepare the update query
+    $query = "UPDATE products SET 
+                product_name = :product_name,
+                category = :category,
+                price = :price,
+                quantity = :quantity,
+                product_availability = :availability,
+                date = :date
+              WHERE id = :id"; // Make sure 'id' matches your primary key field name
+
+    $query_run = $con->prepare($query);
+
+    // Bind parameters to the query
+    $data = [
+        ':product_name' => $product_name,
+        ':category' => $category,
+        ':price' => $price,
+        ':quantity' => $quantity,
+        ':availability' => $availability,
+        ':date' => $date,
+        ':id' => $id, // Bind the product ID
+    ];
+
+    // Execute the query
+    $query_execute = $query_run->execute($data);
+
+    // Check if the update was successful
+    if ($query_execute) {
+        $_SESSION['message'] = "Updated Successfully";
+        header('Location: index.php');
+        exit; // Use exit instead of die
+    } else {
+        $_SESSION['message'] = "Update Failed";
+        header('Location: index.php');
+        exit; // Use exit instead of die
+    }
+}
+
+if (isset($_POST['delete_product'])) {
+    $product_id = $_POST['product_id']; // Get the product ID from the form
+
+    // Prepare the delete query
+    $query = "DELETE FROM products WHERE id = :id"; // Make sure 'id' matches your primary key field name
+
+    $query_run = $con->prepare($query);
+
+    // Bind the product ID to the query
+    $data = [
+        ':id' => $product_id, // Bind the product ID
+    ];
+
+    // Execute the delete query
+    $query_execute = $query_run->execute($data);
+
+    // Check if the deletion was successful
+    if ($query_execute) {
+        $_SESSION['message'] = "Deleted Successfully";
+        header('Location: index.php');
+        exit; // Use exit instead of die
+    } else {
+        $_SESSION['message'] = "Deletion Failed";
+        header('Location: index.php');
+        exit; // Use exit instead of die
+    }
+}
+
+?>
+
+DELETEFROMTHECART.PHP
+
+<?php
+session_start();
+include('connection.php');
+$connection = new Connection();
+$pdo = $connection->OpenConnection();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cartItemId'])) {
+    $cartItemId = $_POST['cartItemId'];
+
+    try {
+        // Prepare and execute delete query based on 'cartid'
+        $stmt = $pdo->prepare("DELETE FROM cart WHERE cartid = :cartid");
+        $stmt->bindParam(':cartid', $cartItemId, PDO::PARAM_INT);
+        $stmt->execute();
+
+        // Return a success message in JSON format
+        echo json_encode(['success' => true]);
+    } catch (PDOException $e) {
+        // Return an error message in JSON format
+        echo json_encode(['error' => $e->getMessage()]);
+    }
+}
+?>
+
+FILTER.PHP
+
+<?php
+include("connection.php"); 
+
+// Create a new instance of the Connection class and open the connection
+$connection = new Connection();
+$pdo = $connection->OpenConnection();
+
+if (isset($_POST['search'])) {
+    $product_name = isset($_POST['product_name']) ? $_POST['product_name'] : '';
+    $category = isset($_POST['category']) ? $_POST['category'] : '';
+    $product_availability = isset($_POST['product_availability']) ? $_POST['product_availability'] : '';
+    $start_date = isset($_POST['start_date']) ? $_POST['start_date'] : '';
+    $end_date = isset($_POST['end_date']) ? $_POST['end_date'] : '';
+
+    // Base SQL query
+    $sql = "SELECT * FROM `products` WHERE 1";
+
+    // Add conditions based on input
+    if (!empty($product_name)) {
+        $sql .= " AND `product_name` LIKE :product_name";
+    }
+
+    if (!empty($category)) {
+        $sql .= " AND `category` = :category";
+    }
+
+    if (!empty($product_availability)) {
+        $sql .= " AND `product_availability` = :product_availability";
+    }
+
+    if (!empty($start_date) && !empty($end_date)) {
+        $sql .= " AND `date` BETWEEN :start_date AND :end_date";
+    }
+
+    $sql .= " ORDER BY `id` ASC";
+
+    // Prepare and bind parameters
+    $stmt = $pdo->prepare($sql);
+
+    if (!empty($product_name)) {
+        $product_name = "%" . $product_name . "%";
+        $stmt->bindParam(':product_name', $product_name);
+    }
+
+    if (!empty($category)) {
+        $stmt->bindParam(':category', $category);
+    }
+
+    if (!empty($product_availability)) {
+        $stmt->bindParam(':product_availability', $product_availability);
+    }
+
+    if (!empty($start_date) && !empty($end_date)) {
+        $stmt->bindParam(':start_date', $start_date);
+        $stmt->bindParam(':end_date', $end_date);
+    }
+
+    // Execute the query
+    $stmt->execute();
+    $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    // If no search criteria are selected, fetch all data
+    $stmt = $pdo->query("SELECT * FROM `products`");
+    $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+// Close the connection
+$connection->closeConnection();
+?>
+
+GETCARTITEMS.PHP
+
+<?php
+session_start(); // Start the session
+
+// Include the connection file to use the PDO instance
+include('connection.php');
+$connection = new Connection();
+$pdo = $connection->OpenConnection();
+
+// Get the username from the session
+    $username = isset($_SESSION['username']) ? $_SESSION['username'] : null;
+
+    // Ensure the username is available
+    if ($username) {
+        // Prepare the SQL statement to retrieve cart items for the user
+        $query = "SELECT product, price, quantity FROM cart WHERE username = :username";
+        $stmt = $pdo->prepare($query);
+        $stmt->bindParam(':username', $username);
+
+        try {
+            $stmt->execute();
+            $cartItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Return the cart items as JSON
+            echo json_encode($cartItems);
+        } catch (PDOException $e) {
+            echo json_encode(["error" => "Error: " . $e->getMessage()]);
+        }
+    } else {
+        echo json_encode(["error" => "User not logged in."]);
+    }
+    ?>
+
+
+GETPRODUCTS.PHP
+
+<?php
+include('connection.php');
+$connection = new Connection();
+$pdo = $connection->OpenConnection();
+
+try {
+    $stmt = $pdo->prepare("SELECT product_name, price, quantity FROM products");
+    $stmt->execute();
+    $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Return product data in JSON format
+    echo json_encode($products);
+} catch (PDOException $e) {
+    echo json_encode(['error' => $e->getMessage()]);
+}
+?>
+
+
+INDEX.PHP
+
+<?php
+session_start();
+if (!isset($_SESSION['username'])) {
+    header("Location: login.php");
+    exit;
+}
+
+include('filter.php');
+include('connection.php');
+$connection = new Connection();
+$pdo = $connection->OpenConnection();
+?>
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f5f1e6; /* Light cream background */
+            font-family: 'Arial', sans-serif;
+            color: #4e3b31; /* Coffee brown color */
+        }
+
+        h5 {
+            color: #4e3b31;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+        }
+
+        .btn-outline-primary {
+            color: #4e3b31;
+            border-color: #4e3b31;
+            background-color: transparent;
+        }
+
+        .btn-outline-primary:hover {
+            background-color: #4e3b31;
+            color: #fff;
+        }
+
+        .btn-outline-secondary {
+            color: #5e4b3c;
+            border-color: #5e4b3c;
+            background-color: transparent;
+        }
+
+        .btn-outline-secondary:hover {
+            background-color: #5e4b3c;
+            color: #fff;
+        }
+
+        .btn-close {
+            color: #4e3b31;
+        }
+
+        table {
+            background-color: #f9f3e1; /* Light coffee-colored table */
+        }
+
+        th, td {
+            padding: 10px;
+        }
+
+        th {
+            background-color: #d6c6b4; /* Light brown */
+        }
+
+        .modal-content {
+            background-color: #fff3e0; /* Coffee cream modal */
+        }
+
+        .modal-header {
+            background-color: #4e3b31;
+            color: #fff;
+        }
+
+        .modal-body {
+            background-color: #f5f1e6;
+        }
+
+        .modal-footer .btn {
+            background-color: #4e3b31;
+            color: white;
+        }
+
+        .modal-footer .btn:hover {
+            background-color: #3d2b1f;
+        }
+
+        .logout-btn {
+            background-color: #f2d5b5;
+            color: #4e3b31;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+        }
+
+        .logout-btn:hover {
+            background-color: #f1b27d;
+        }
+
+        .table-hover tbody tr:hover {
+            background-color: #f1e0c6; /* Hover effect with a coffee-inspired shade */
+        }
+    </style>
+</head>
+
+<body>
+<div class="container">
+    <br>
+    <form class="row g-3" method="POST">
+        <div class="col-md-6">
+            <label for="start_date" class="form-label">Start Date:</label>
+            <input type="date" name="start_date" class="form-control">
+        </div>
+        <div class="col-md-6">
+            <label for="end_date" class="form-label">End Date:</label>
+            <input type="date" name="end_date" class="form-control">
+        </div>
+        <div class="col-md-6">
+            <label for="product_name" class="form-label">Product Name</label>
+            <input type="text" class="form-control" name="product_name">
+        </div>
+        <div class="col-md-6">
+            <label for="category" class="form-label">Category</label>
+            <select class="form-select" name="category">
+                <option value="">All</option>
+                <?php
+                // Fetch categories from the database
+                $stmt = $pdo->query("SELECT * FROM category_table");
+                $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($categories as $cat) {
+                    echo "<option value='{$cat['category_id']}'>{$cat['category_name']}</option>";
+                }
+                ?>
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label for="product_availability" class="form-label">Product Availability</label>
+            <select class="form-select" name="product_availability">
+                <option value="">All</option>
+                <option value="In Stock">In stock</option>
+                <option value="Out of Stock">Out of stock</option>
+            </select>
+        </div>
+        <div class="col-12">
+            <button type="submit" name="search" class="btn btn-outline-primary">Filter</button>
+        </div>
+    </form>
+    <br>
+</div>
+
+<!-- Button for adding product and category -->
+<div class="container">
+    <div class="col-12 mt-3 d-flex justify-content-end">
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addModal">Add Product</button>
+        <button type="button" class="btn btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#addCategoryModal">Add Category</button>
+    </div>
+
+    <!-- Bootstrap table for products -->
+    <table class="table table-dark table-hover mt-3">
+        <thead>
+            <tr>
+                <th scope="col">Id</th>
+                <th scope="col">Product Name</th>
+                <th scope="col">Category</th>
+                <th scope="col">Price</th>
+                <th scope="col">Quantity</th>
+                <th scope="col">Product Availability</th>
+                <th scope="col">Date</th>
+                <th scope="col">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php
+            // Fetch products with category names using INNER JOIN
+            $sql = "SELECT p.*, c.category_name FROM products p
+                    INNER JOIN category_table c ON p.category = c.category_id
+                    ORDER BY p.id ASC";
+            $stmt = $pdo->query($sql);
+            $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($products as $row) {
+            ?>
+                <tr>
+                    <th scope="row"><?= $row['id']; ?></th>
+                    <td><?= $row['product_name']; ?></td>
+                    <td><?= $row['category_name']; ?></td>
+                    <td><?= $row['price']; ?></td>
+                    <td><?= $row['quantity']; ?></td>
+                    <td><?= $row['product_availability']; ?></td>
+                    <td><?= $row['date']; ?></td>
+                    <td>
+                        <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#editModal<?= $row['id'] ?>">Edit</button>
+                        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteModal<?= $row['id'] ?>">Delete</button>
+                    </td>
+                </tr>
+
+                <!-- Edit Modal for each product -->
+                <div class="modal fade" id="editModal<?= $row['id'] ?>" tabindex="-1" aria-labelledby="editModalLabel<?= $row['id'] ?>" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form action="crud.php" method="post">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="editModalLabel<?= $row['id'] ?>">Edit Product - <?= $row['product_name'] ?></h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <div class="container-fluid">
+                                        <div class="row">
+                                            <input type="hidden" name="id" value="<?= $row['id'] ?>">
+                                            <div class="col-md-6">
+                                                <label for="productName" class="form-label">Product Name</label>
+                                                <input type="text" class="form-control" name="product_name" value="<?= $row['product_name'] ?>">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="category" class="form-label">Category</label>
+                                                <select class="form-select" name="category">
+                                                    <option value="">Select Category</option>
+                                                    <?php
+                                                    // Fetch categories from the database
+                                                    $stmt = $pdo->query("SELECT * FROM category_table");
+                                                    $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                                                    foreach ($categories as $cat) {
+                                                        $selected = ($cat['category_id'] == $row['category']) ? 'selected' : '';
+                                                        echo "<option value='{$cat['category_id']}' $selected>{$cat['category_name']}</option>";
+                                                    }
+                                                    ?>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="price" class="form-label">Price</label>
+                                                <input type="text" class="form-control" name="price" value="<?= $row['price'] ?>">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="quantity" class="form-label">Quantity</label>
+                                                <input type="text" class="form-control" name="quantity" value="<?= $row['quantity'] ?>">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="productAvailability" class="form-label">Availability</label>
+                                                <select class="form-select" name="product_availability">
+                                                    <option value="In Stock" <?= $row['product_availability'] == 'In Stock' ? 'selected' : '' ?>>In Stock</option>
+                                                    <option value="Out of Stock" <?= $row['product_availability'] == 'Out of Stock' ? 'selected' : '' ?>>Out of Stock</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label for="date" class="form-label">Date</label>
+                                                <input type="date" class="form-control" name="date" value="<?= $row['date'] ?>">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="submit" class="btn btn-primary" name="update_product">Save changes</button>
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Delete Modal for each product -->
+                <div class="modal fade" id="deleteModal<?= $row['id'] ?>" tabindex="-1" aria-labelledby="deleteModalLabel<?= $row['id'] ?>" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <form action="crud.php" method="post">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="deleteModalLabel<?= $row['id'] ?>">Delete Product</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>Are you sure you want to delete <?= $row['product_name'] ?>?</p>
+                                    <input type="hidden" name="id" value="<?= $row['id'] ?>">
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="submit" class="btn btn-danger" name="delete_product">Delete</button>
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+            <?php } ?>
+        </tbody>
+    </table>
+</div>
+
+<!-- Logout Button -->
+<div class="container">
+    <div class="d-flex justify-content-end">
+        <a href="logout.php" class="logout-btn">Logout</a>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
+LANDINGPAGE.PHP
+
+<?php
+// Start the session to access session variables
+session_start();
+
+// Include the connection file to use the PDO instance
+include('connection.php');
+$connection = new Connection();
+$pdo = $connection->OpenConnection();
+try {
+    // Use the $pdo object from your connection setup
+    $stmt = $pdo->prepare("SELECT product_name, price, quantity FROM products");
+    $stmt->execute();
+    $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    die("Error: " . $e->getMessage());
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Display</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script>
+        function openCart() {
+            window.location.href = 'mycart.php';
+        }
+        
+        // JavaScript to handle quantity increment and decrement
+        function incrementQuantity(inputId) {
+            let input = document.getElementById(inputId);
+            input.value = parseInt(input.value) + 1;
+        }
+
+        function decrementQuantity(inputId) {
+            let input = document.getElementById(inputId);
+            if (input.value > 1) {
+                input.value = parseInt(input.value) - 1;
+            }
+        }
+
+        function addToCart(productName, price, quantity) {
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "addtocart.php", true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState == 4 && xhr.status == 200) {
+                    alert('Product added to cart!');
+                    refreshProductCards(); // Refresh product cards after adding to cart
+                }
+            };
+
+            // Send the POST data (product name, price, quantity)
+            xhr.send("productName=" + encodeURIComponent(productName) + "&price=" + encodeURIComponent(price) + "&quantity=" + encodeURIComponent(quantity));
+        }
+
+        function refreshProductCards() {
+            const xhr = new XMLHttpRequest();
+            xhr.open("GET", "getProducts.php", true); // Ensure this points to your PHP file that returns product data in JSON format
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState == 4 && xhr.status == 200) {
+                    const products = JSON.parse(xhr.responseText);
+                    const productContainer = document.querySelector('.container .row');
+                    productContainer.innerHTML = ''; // Clear current product cards
+
+                    products.forEach((product, index) => {
+                        const productCard = `
+                            <div class="col-md-4 mb-4">
+                                <div class="card shadow-lg border-0 rounded-lg">
+                                    <div class="card-body">
+                                        <h5 class="card-title">${product.product_name}</h5>
+                                        <p class="card-text">Price: $${product.price}</p>
+                                        <p class="card-text">Available Quantity: ${product.quantity}</p>
+                                        <div class="d-flex align-items-center">
+                                            <div class="input-group me-2" style="width: 120px;">
+                                                <button class="btn btn-outline-secondary" type="button" onclick="decrementQuantity('quantity-${index}')">-</button>
+                                                <input type="text" id="quantity-${index}" class="form-control text-center" value="1" min="1" readonly>
+                                                <button class="btn btn-outline-secondary" type="button" onclick="incrementQuantity('quantity-${index}')">+</button>
+                                            </div>
+                                            <button class="btn btn-primary" onclick="addToCart('${product.product_name}', '${product.price}', document.getElementById('quantity-${index}').value)">
+                                                Add to Cart
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        productContainer.innerHTML += productCard; // Append each new product card
+                    });
+                }
+            };
+            xhr.send();
+        }
+    </script>
+    <style>
+        body {
+            background: #f4f1ec; /* Light coffee cream color for the background */
+            font-family: 'Arial', sans-serif;
+        }
+
+        .navbar {
+            background-color: #3e2723; /* Dark coffee color for navbar */
+        }
+
+        .navbar a, .navbar .navbar-nav .nav-item {
+            color: #f8f1e5 !important; /* Cream color for navbar text */
+        }
+
+        .navbar .nav-item i {
+            font-size: 25px;
+        }
+
+        .navbar .nav-item span {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .card {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            background-color: #d7ccc8; /* Light coffee brown color for cards */
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-outline-secondary {
+            border-radius: 25px;
+            border-color: #6d4c41; /* Dark brown for the button outline */
+        }
+
+        .btn-primary {
+            background-color: #3e2723; /* Dark coffee color for primary button */
+            border-radius: 25px;
+            padding: 10px 20px;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: #5d4037; /* Lighter brown for hover effect */
+        }
+
+        .input-group-text, .form-control {
+            border-radius: 25px;
+            border-color: #6d4c41; /* Dark brown for the input fields */
+        }
+
+        .container {
+            margin-top: 30px;
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+
+        .card-body p {
+            font-size: 1rem;
+        }
+
+        .input-group {
+            width: 150px;
+        }
+
+        /* Cart Button */
+        #openCartBtn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 10;
+            border-radius: 50%;
+            padding: 15px;
+            background-color: #3e2723; /* Dark coffee color for the cart button */
+            color: white;
+            font-size: 18px;
+        }
+
+        #openCartBtn:hover {
+            background-color: #5d4037; /* Lighter brown on hover */
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <!-- Profile Section with Font Awesome Icon -->
+            <li class="nav-item d-flex align-items-center">
+                <i class="fas fa-user-circle text-white" style="font-size: 40px;"></i>
+                <!-- Display the logged-in username -->
+                <span class="ms-2 text-white">
+                    <?php 
+                    // Display username if it's set in the session, else show 'Guest'
+                    echo isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username']) : 'Guest'; 
+                    ?>
+                </span>
+            </li>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                    <button id="openCartBtn" class="btn btn-outline-light" type="button" onclick="openCart()">
+                        <i class="fas fa-shopping-cart"></i> Cart
+                    </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Product Cards -->
+    <div class="container">
+        <div class="row">
+            <?php if (!empty($products)): ?>
+                <?php foreach ($products as $index => $row): ?>
+                    <div class="col-md-4 mb-4">
+                        <div class="card shadow-lg border-0 rounded-lg">
+                            <div class="card-body">
+                                <h5 class="card-title"><?= htmlspecialchars($row["product_name"]) ?></h5>
+                                <p class="card-text">Price: <?= htmlspecialchars($row["price"]) ?></p>
+                                <p class="card-text">Available Quantity: <?= htmlspecialchars($row["quantity"]) ?></p>
+                                <div class="d-flex align-items-center">
+                                    <div class="input-group me-2" style="width: 120px;">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="decrementQuantity('quantity-<?= $index ?>')">-</button>
+                                        <input type="text" id="quantity-<?= $index ?>" class="form-control text-center" value="1" min="1" readonly>
+                                        <button class="btn btn-outline-secondary" type="button" onclick="incrementQuantity('quantity-<?= $index ?>')">+</button>
+                                    </div>
+                                    <button class="btn btn-primary" onclick="addToCart('<?= htmlspecialchars($row['product_name']) ?>', '<?= htmlspecialchars($row['price']) ?>', document.getElementById('quantity-<?= $index ?>').value)">
+                                        Add to Cart
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <p>No products found.</p>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
+LOGIN.PHP
+
+<?php
+session_start();
+include('connection.php');
+
+$connection = new Connection();
+$pdo = $connection->OpenConnection();
+
+$error = ''; // Initialize an error variable
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Collect and sanitize input data
+    $username = $_POST['username'];
+    $password = $_POST['password'];
+
+    // Query to fetch user data
+    $query = "SELECT * FROM katawhan WHERE username = :username";
+    $stmt = $pdo->prepare($query);
+    $stmt->execute([':username' => $username]);
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($user) {
+        // Compare the provided password with the stored password
+        if ($user['password'] === $password) {
+            // Password is correct, set session variables
+            $_SESSION['user_id'] = $user['id']; // Assuming 'id' is the primary key
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['role'] = $user['role']; // Store the user's role in the session
+            
+            // Redirect based on the user's role
+            if ($user['role'] === 'admin') {
+                // If role is admin, redirect to index.php
+                header("Location: index.php");
+            } else {
+                // If role is user, redirect to landingpage.php
+                header("Location: landingpage.php");
+            }
+            exit;
+        } else {
+            // Invalid password
+            $error = "Invalid username or password.";
+        }
+    } else {
+        // User not found
+        $error = "Invalid username or password.";
+    }
+}
+
+// Check for error message in URL
+if (isset($_GET['error'])) {
+    $error = urldecode($_GET['error']);
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Login</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://kit.fontawesome.com/a076d05399.js"></script>
+    <style>
+        body {
+            background-color: #f4f1ec; /* Light coffee cream color for the background */
+        }
+
+        .card {
+            border: none;
+            border-radius: 8px;
+            background-color: #d7ccc8; /* Light coffee brown color for the card */
+        }
+
+        .card .input-group .input-group-prepend .input-group-text {
+            background-color: #6d4c41; /* Dark coffee for input icons */
+            color: white;
+        }
+
+        .form-control:focus {
+            box-shadow: none;
+            border-color: #3e2723; /* Dark brown color for the input field focus */
+        }
+
+        .btn-primary {
+            background-color: #3e2723; /* Dark coffee color for the button */
+            border: none;
+            border-radius: 20px;
+        }
+
+        .btn-primary:hover {
+            background-color: #5d4037; /* Lighter brown for the button hover */
+        }
+
+        .modal-content {
+            background-color: #d7ccc8; /* Light coffee color for the modal */
+        }
+
+        .modal-header {
+            border-bottom: 1px solid #6d4c41; /* Dark coffee color for the modal header border */
+        }
+
+        .modal-title {
+            color: #3e2723; /* Dark coffee color for the modal title */
+        }
+
+        .alert-danger {
+            background-color: #f8d7da; /* Soft red color for the error alert */
+            color: #721c24; /* Dark red text for error messages */
+        }
+
+        .input-group-text, .form-control {
+            border-radius: 20px;
+            border-color: #6d4c41; /* Dark coffee color for input fields */
+        }
+
+        .container {
+            margin-top: 50px;
+        }
+
+        .btn-link {
+            color: #3e2723; /* Dark coffee color for the link */
+        }
+
+        .btn-link:hover {
+            color: #5d4037; /* Lighter brown for the link hover */
+        }
+
+        .card-body p {
+            font-size: 1.2rem;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card shadow-sm mt-5">
+                <div class="card-body p-4">
+                    <h3 class="text-center mb-4 font-weight-bold text-dark">Login</h3>
+
+                    <!-- Error Message Display -->
+                    <?php if (!empty($error)): ?>
+                        <div class="alert alert-danger text-center" role="alert">
+                            <?= htmlspecialchars($error); ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <!-- Login Form -->
+                    <form action="login.php" method="POST">
+                        <div class="form-group">
+                            <label for="username">Username</label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-user"></i>
+                                    </span>
+                                </div>
+                                <input type="text" class="form-control" id="username" name="username" placeholder="Enter username" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group mt-3">
+                            <label for="password">Password</label>
+                            <div class="input-group">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-lock"></i>
+                                    </span>
+                                </div>
+                                <input type="password" class="form-control" id="password" name="password" placeholder="Enter password" required>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-block mt-4">Login</button>
+                    </form>
+
+                    <!-- Register Button -->
+                    <div class="text-center mt-3">
+                        <button type="button" class="btn btn-link" data-toggle="modal" data-target="#registerModal">Create an Account</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Registration Modal -->
+    <div class="modal fade" id="registerModal" tabindex="-1" aria-labelledby="registerModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="registerModalLabel">Register</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form action="register.php" method="POST">
+                        <div class="form-group">
+                            <label for="first_name">First Name</label>
+                            <input type="text" class="form-control" id="first_name" name="first_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="last_name">Last Name</label>
+                            <input type="text" class="form-control" id="last_name" name="last_name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="address">Address</label>
+                            <input type="text" class="form-control" id="address" name="address" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="birthdate">Birthdate</label>
+                            <input type="date" class="form-control" id="birthdate" name="birthdate" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="gender">Gender</label>
+                            <select class="form-control" id="gender" name="gender" required>
+                                <option value="">Select Gender</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="role">Role</label>
+                            <select class="form-control" id="role" name="role" required>
+                                <option value="">Select Role</option>
+                                <option value="admin">admin</option>
+                                <option value="user">user</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="username">Username</label>
+                            <input type="text" class="form-control" id="username" name="username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <input type="password" class="form-control" id="password" name="password" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Register</button>
+                    </form>
+                    <!-- Display registration error message -->
+                    <?php if (isset($_GET['error'])): ?>
+                        <div class="alert alert-danger mt-2">
+                            <?= htmlspecialchars(urldecode($_GET['error'])); ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS, jQuery, and Popper.js -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+</body>
+</html>
+
+
+LOGOUT.PHP
+<?php
+session_start(); 
+session_destroy(); 
+header("Location: login.php");
+exit;
+?>
+
+MYCART,PHP
+
+<?php
+// Start session and include database connection
+session_start();
+include('connection.php');
+$connection = new Connection();
+$pdo = $connection->OpenConnection();
+
+try {
+    // Prepare SQL query to fetch cart items for the logged-in user, including total
+    $stmt = $pdo->prepare("SELECT cartid, product, quantity, price, total FROM cart WHERE username = ?");
+    $stmt->execute([$_SESSION['username']]);
+    $cartItems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Calculate the grand total (sum of all item totals)
+    $grandTotal = 0;
+    foreach ($cartItems as $item) {
+        $grandTotal += $item['total']; // Use 'total' from the database
+    }
+} catch (PDOException $e) {
+    die("Error: " . $e->getMessage());
+}
+
+if (isset($_GET['delete'])) {
+    $cartid = $_GET['delete'];
+    try {
+        $stmt = $pdo->prepare("DELETE FROM cart WHERE cartid = ?");
+        $stmt->execute([$cartid]);
+        header("Location: mycart.php"); // Redirect back to the cart page after deletion
+        exit();
+    } catch (PDOException $e) {
+        die("Error: " . $e->getMessage());
+    }
+}
+
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Cart</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f1e1; /* Light coffee cream background */
+            font-family: 'Arial', sans-serif;
+            color: #4e3b31; /* Coffee brown text */
+        }
+
+        .navbar {
+            background-color: #3b2f2a; /* Dark coffee color */
+        }
+
+        .navbar-brand {
+            color: #f5f1e6; /* Light cream for the brand name */
+        }
+
+        .container {
+            background-color: #fff8e1; /* Light coffee background for the content */
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-top: 30px;
+        }
+
+        .table-striped {
+            background-color: #f5e6d3; /* Light coffee-colored table */
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #d3b29a; /* Soft brown for table headers */
+        }
+
+        .btn-danger, .btn-primary, .btn-success {
+            border-radius: 5px;
+        }
+
+        .btn-danger {
+            background-color: #b84d4d; /* Dark red for delete button */
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            background-color: #9e3e3e;
+        }
+
+        .btn-primary {
+            background-color: #5a3a3a; /* Dark coffee for primary button */
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #4c2e2e;
+        }
+
+        .btn-success {
+            background-color: #a8d08d; /* Greenish color for success button */
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #81b078;
+        }
+
+        .modal-content {
+            background-color: #fff3e0; /* Coffee cream background for modal */
+        }
+
+        .modal-header {
+            background-color: #4e3b31; /* Dark coffee header */
+            color: white;
+        }
+
+        .modal-body {
+            background-color: #f8f1e1;
+        }
+
+        .modal-footer .btn {
+            background-color: #4e3b31;
+            color: white;
+        }
+
+        .modal-footer .btn:hover {
+            background-color: #3b2f2a;
+        }
+
+        .list-group-item {
+            background-color: #f0e1c6; /* Light coffee color for items in the checkout list */
+        }
+
+        .text-end h4 {
+            color: #5a3a3a;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">Shopping Cart</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-3">
+        <h3>Your Shopping Cart</h3>
+
+        <?php if (!empty($cartItems)): ?>
+            <!-- Cart Table -->
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th scope="col">Product</th>
+                        <th scope="col">Quantity</th>
+                        <th scope="col">Price</th>
+                        <th scope="col">Total</th>
+                        <th scope="col">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($cartItems as $item): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($item['product']) ?></td>
+                            <td><?= htmlspecialchars($item['quantity']) ?></td>
+                            <td><?= htmlspecialchars($item['price']) ?></td>
+                            <td><?= htmlspecialchars($item['total']) ?></td>
+                            <td>
+                                <!-- Delete Button -->
+                                <a href="mycart.php?delete=<?= $item['cartid'] ?>" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this item?')">
+                                    Delete
+                                </a>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <!-- Total Price -->
+            <div class="text-end">
+                <h4>Total Price: $<?= number_format($grandTotal, 2) ?></h4>
+            </div>
+
+        <?php else: ?>
+            <p>Your cart is empty.</p>
+        <?php endif; ?>
+
+        <!-- Buttons -->
+        <div class="text-end mt-4">
+            <a href="landingpage.php" class="btn btn-primary">Continue Shopping</a>
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#checkoutModal">Proceed to Checkout</button>
+        </div>
+
+    </div>
+
+    <!-- Checkout Modal -->
+    <div class="modal fade" id="checkoutModal" tabindex="-1" aria-labelledby="checkoutModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="checkoutModalLabel">Checkout</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="checkoutForm">
+                        <div class="mb-3">
+                            <label for="fullname" class="form-label">Full Name</label>
+                            <input type="text" class="form-control" id="fullname" name="fullname" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="address" class="form-label">Address</label>
+                            <textarea class="form-control" id="address" name="address" rows="3" required></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="contact" class="form-label">Contact Number</label>
+                            <input type="text" class="form-control" id="contact" name="contact" required>
+                        </div>
+
+                        <h5>Items in Your Cart:</h5>
+                        <ul class="list-group mb-3" id="cartItemsList">
+                            <?php foreach ($cartItems as $item): ?>
+                                <li class="list-group-item">
+                                    <?= htmlspecialchars($item['product']) ?> - 
+                                    Quantity: <?= htmlspecialchars($item['quantity']) ?> - 
+                                    $<?= htmlspecialchars($item['quantity'] * $item['price']) ?>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+
+                        <div class="mb-3">
+                            <label for="total" class="form-label">Total Price</label>
+                            <input type="text" class="form-control" id="total" name="total" value="$<?= number_format($grandTotal, 2) ?>" readonly>
+                        </div>
+
+                        <button type="button" class="btn btn-primary" id="submitCheckoutBtn">Proceed with Payment</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            $('#submitCheckoutBtn').on('click', function() {
+                var fullname = $('#fullname').val();
+                var address = $('#address').val();
+                var contact = $('#contact').val();
+                var total = $('#total').val();
+                var cartItems = [];
+
+                $('#cartItemsList li').each(function() {
+                    var product = $(this).text();
+                    cartItems.push(product);
+                });
+
+                $.ajax({
+                    url: 'process_checkout.php',
+                    method: 'POST',
+                    data: {
+                        fullname: fullname,
+                        address: address,
+                        contact: contact,
+                        total: total,
+                        cartItems: cartItems
+                    },
+                    success: function(response) {
+                        if (response == 'success') {
+                            alert('Checkout successful!');
+                            window.location.reload();
+                        } else {
+                            alert('Error during checkout. Please try again.');
+                        }
+                    },
+                    error: function() {
+                        alert('An error occurred. Please try again.');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
+
+PROCESS_CHECHOUT.PHP
+
+<?php
+session_start();
+include('connection.php');
+$connection = new Connection();
+$pdo = $connection->OpenConnection();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Get POST data from AJAX request
+    $fullname = $_POST['fullname'];
+    $address = $_POST['address'];
+    $contact = $_POST['contact'];
+    $cartItems = $_POST['cartItems'];
+    $total = $_POST['total'];
+
+    try {
+        // Insert into checkout table
+        $stmt = $pdo->prepare("INSERT INTO checkout (fullname, address, contactnumber, products, total) VALUES (?, ?, ?, ?, ?)");
+        $stmt->execute([$fullname, $address, $contact, implode(', ', $cartItems), $total]);
+
+        // Get the last inserted id for the checkout record
+        $checkoutId = $pdo->lastInsertId();
+
+        // Delete all cart items for the logged-in user
+        $stmt = $pdo->prepare("DELETE FROM cart WHERE username = ?");
+        $stmt->execute([$_SESSION['username']]);
+
+        echo 'success';
+    } catch (PDOException $e) {
+        echo 'Error: ' . $e->getMessage();
+    }
+} else {
+    echo 'Invalid request method';
+}
+?>
+
+
+REGISTER.PHP
+
+<?php
+session_start();
+include('connection.php');
+
+$connection = new Connection();
+$pdo = $connection->OpenConnection();
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Collect and sanitize input data
+    $first_name = $_POST['first_name'];
+    $last_name = $_POST['last_name'];
+    $address = $_POST['address'];
+    $birthdate = $_POST['birthdate'];
+    $gender = $_POST['gender'];
+    $username = $_POST['username'];
+    $password = $_POST['password'];
+    $role = $_POST['role'];
+
+    // Check if username already exists
+    $checkQuery = "SELECT COUNT(*) FROM katawhan WHERE username = :username";
+    $checkStmt = $pdo->prepare($checkQuery);
+    $checkStmt->execute([':username' => $username]);
+    $count = $checkStmt->fetchColumn();
+
+    if ($count > 0) {
+        // Username already exists, redirect with error message
+        $error = "Username already exists. Please choose a different one.";
+        header("Location: login.php?error=" . urlencode($error));
+        exit;
+    } else {
+        // Insert data into the 'katawhan' table
+        $query = "INSERT INTO katawhan (first_name, last_name, address, birthdate, gender, role , username, password) 
+        VALUES (:first_name, :last_name, :address, :birthdate, :gender, :role, :username, :password)";
+        $stmt = $pdo->prepare($query);
+
+        // Execute and check for successful registration
+        if ($stmt->execute([
+            ':first_name' => $first_name,
+            ':last_name' => $last_name,
+            ':address' => $address,
+            ':birthdate' => $birthdate,
+            ':gender' => $gender,
+            ':role' => $role,
+            ':username' => $username,
+            ':password' => $password
+        ])) {
+            // Successful registration
+            header("Location: login.php?success=1");
+            exit;
+        } else {
+            // Registration failed
+            $error = "Registration failed. Please try again.";
+        }
+    }
+}
+?>
+
+
+
